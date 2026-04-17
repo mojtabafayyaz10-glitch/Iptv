@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>IPTV Player</title>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.4.12/dist/hls.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+:root {
+  --bg: #0a0a0f;
+  --s1: #111118;
+  --s2: #1a1a24;
+  --s3: #22222e;
+  --br: rgba(255,255,255,0.07);
+  --ac: #00d4aa;
+  --ac2: #7c4dff;
+  --tx: #f0f0f8;
+  --tx2: #8888a8;
+  --tx3: #44445a;
+  --red: #ff4d6d;
+}
+
+body {
+  background: var(--bg);
+  color: var(--tx);
+  font-family: -apple-system, 'Helvetica Neue', sans-serif;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── TOPBAR ── */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 52px 16px 12px;
+  background: var(--s1);
+  border-bottom: 1px solid var(--br);
+  flex-shrink: 0;
+}
+.logo { display:flex; align-items:center; gap:8px; }
+.logo-icon {
+  width:32px; height:32px; border-radius:8px;
+  background: linear-gradient(135deg,var(--ac),var(--ac2));
+  display:flex; align-items:center; justify-content:center; font-size:15px;
+}
+.logo-text { font-size:16px; font-weight:800; letter-spacing:.5px; }
+.logo-text b { color:var(--ac); }
+.top-btn {
+  width:36px; height:36px; border-radius:10px;
+  background:var(--s2); border:1px solid var(--br);
+  display:flex; align-items:center; justify-content:center;
+  font-size:17px; cursor:pointer;
+}
+.top-btn:active { opacity:.7; }
+
+/* ── TABS ── */
+.tabs {
+  display:flex; background:var(--s1);
+  border-bottom:1px solid var(--br); flex-shrink:0;
+}
+.tab {
+  flex:1; padding:9px 4px; text-align:center;
+  font-size:10px; color:var(--tx3); cursor:pointer;
+  border-bottom:2px solid transparent;
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+}
+.tab .ti { font-size:17px; }
+.tab.on { color:var(--ac); border-bottom-color:var(--ac); font-weight:600; }
+
+/* ── SCREENS ── */
+.screen { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; display:none; }
+.screen.on { display:flex; flex-direction:column; }
+
+/* ── PLAYER SCREEN ── */
+#s-player { background:#000; }
+
+.video-box {
+  position:relative; width:100%; background:#000; flex-shrink:0;
+}
+video {
+  width:100%; display:block; max-height:56vw; background:#000;
+}
+.vid-overlay {
+  position:absolute; inset:0;
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  background:#000; gap:10px;
+}
+.vid-overlay .oi { font-size:44px; opacity:.3; }
+.vid-overlay p { font-size:12px; color:var(--tx3); }
+.vid-overlay.hidden { display:none; }
+
+.status-bar {
+  position:absolute; bottom:8px; left:50%;
+  transform:translateX(-50%);
+  background:rgba(0,0,0,.75);
+  color:#fff; font-size:11px; padding:4px 14px;
+  border-radius:20px; white-space:nowrap;
+  backdrop-filter:blur(6px);
+  display:none;
+}
+
+/* buffer indicator */
+.buf-bar {
+  width:100%; height:2px; background:rgba(255,255,255,.06); flex-shrink:0;
+}
+.buf-fill {
+  height:100%; width:0%;
+  background:linear-gradient(90deg,var(--ac),var(--ac2));
+  transition:width .3s;
+}
+
+/* now playing */
+.now {
+  padding:12px 16px; background:var(--s1);
+  border-bottom:1px solid var(--br); flex-shrink:0;
+  display:flex; align-items:center; gap:10px;
+}
+.now-logo {
+  width:42px; height:42px; border-radius:8px;
+  background:var(--s2); display:flex; align-items:center;
+  justify-content:center; font-size:18px; flex-shrink:0; overflow:hidden;
+}
+.now-logo img { width:100%; height:100%; object-fit:contain; }
+.now-info { flex:1; min-width:0; }
+.now-name { font-size:13px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.now-grp  { font-size:11px; color:var(--tx2); margin-top:2px; }
+.live-dot {
+  width:7px; height:7px; border-radius:50%;
+  background:var(--red); flex-shrink:0;
+  animation:blink 1.2s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
+.live-txt { font-size:10px; color:var(--red); font-weight:700; margin-right:4px; }
+
+/* controls */
+.ctrls {
+  padding:10px 16px 14px; background:var(--s1);
+  border-bottom:1px solid var(--br); flex-shrink:0;
+}
+.ctrl-row { display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:10px; }
+.cb {
+  width:44px; height:44px; border-radius:50%;
+  background:var(--s2); border:1px solid var(--br);
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px; cursor:pointer;
+}
+.cb:active { opacity:.6; transform:scale(.9); }
+.cb.big {
+  width:54px; height:54px; font-size:22px;
+  background:linear-gradient(135deg,var(--ac),var(--ac2));
+  border:none; box-shadow:0 4px 20px rgba(0,212,170,.35);
+}
+.cb.act { color:var(--ac); border-color:var(--ac); }
+
+/* buffer slider */
+.buf-row { display:flex; align-items:center; gap:10px; }
+.buf-row label { font-size:11px; color:var(--tx2); white-space:nowrap; }
+input[type=range] {
+  flex:1; -webkit-appearance:none; height:3px;
+  border-radius:3px; background:var(--s3); outline:none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance:none; width:16px; height:16px;
+  border-radius:50%; background:var(--ac); cursor:pointer;
+}
+.buf-val { font-size:11px; color:var(--ac); font-weight:700; min-width:28px; text-align:left; }
+
+/* player channel list */
+.p-list { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+
+/* ── CHANNELS ── */
+.search-wrap {
+  padding:10px 16px; background:var(--s1);
+  border-bottom:1px solid var(--br); flex-shrink:0;
+}
+.search-inner {
+  display:flex; align-items:center; gap:8px;
+  background:var(--s2); border-radius:12px;
+  padding:8px 12px; border:1px solid var(--br);
+}
+.search-inner input {
+  flex:1; background:none; border:none; outline:none;
+  color:var(--tx); font-size:13px; direction:rtl;
+}
+.search-inner input::placeholder { color:var(--tx3); }
+
+.cats {
+  display:flex; gap:8px; padding:10px 16px;
+  overflow-x:auto; scrollbar-width:none; flex-shrink:0;
+}
+.cats::-webkit-scrollbar { display:none; }
+.chip {
+  white-space:nowrap; padding:6px 14px; border-radius:20px;
+  font-size:11px; font-weight:600; cursor:pointer;
+  border:1px solid var(--br); color:var(--tx2);
+  background:var(--s2); flex-shrink:0;
+}
+.chip.on { background:var(--ac); color:#000; border-color:var(--ac); }
+
+/* channel item */
+.ch {
+  display:flex; align-items:center; gap:10px;
+  padding:10px 16px; cursor:pointer;
+  border-bottom:1px solid var(--br);
+}
+.ch:active, .ch.playing { background:var(--s2); }
+.ch.playing .ch-name { color:var(--ac); }
+.ch-num { width:22px; font-size:11px; color:var(--tx3); text-align:center; flex-shrink:0; }
+.ch-logo {
+  width:38px; height:38px; border-radius:8px;
+  background:var(--s2); display:flex; align-items:center;
+  justify-content:center; font-size:15px; flex-shrink:0; overflow:hidden;
+}
+.ch-logo img { width:100%; height:100%; object-fit:contain; }
+.ch-info { flex:1; min-width:0; }
+.ch-name { font-size:13px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.ch-grp  { font-size:11px; color:var(--tx3); margin-top:2px; }
+.ch-fav  { font-size:16px; padding:4px; color:var(--tx3); }
+.ch-fav.on { color:#FFD700; }
+
+/* section header */
+.sh {
+  padding:14px 16px 6px;
+  font-size:10px; font-weight:700; color:var(--tx3);
+  letter-spacing:1.5px; text-transform:uppercase;
+}
+
+/* ── PLAYLIST SCREEN ── */
+.pl-card {
+  margin:12px 16px;
+  background:var(--s2); border-radius:16px;
+  border:1px solid var(--br); overflow:hidden;
+}
+.pl-head {
+  padding:14px 16px; display:flex; align-items:center; gap:12px;
+  border-bottom:1px solid var(--br);
+}
+.pl-icon {
+  width:44px; height:44px; border-radius:10px;
+  background:linear-gradient(135deg,var(--ac),var(--ac2));
+  display:flex; align-items:center; justify-content:center; font-size:20px;
+}
+.pl-info { flex:1; }
+.pl-name { font-size:14px; font-weight:700; }
+.pl-meta { font-size:11px; color:var(--tx2); margin-top:3px; }
+.pl-btns { display:flex; gap:8px; padding:10px 16px; }
+.pb {
+  padding:7px 14px; border-radius:8px; font-size:12px; font-weight:600;
+  cursor:pointer; border:1px solid; font-family:inherit;
+}
+.pb.ref { background:var(--s3); border-color:var(--br); color:var(--tx2); }
+.pb.del { background:rgba(255,77,109,.1); border-color:var(--red); color:var(--red); }
+
+.add-btn {
+  margin:12px 16px; padding:14px;
+  background:var(--s2); border-radius:16px;
+  border:2px dashed var(--br);
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  cursor:pointer; color:var(--tx2); font-size:13px; font-weight:600;
+  font-family:inherit; width:calc(100% - 32px);
+}
+.add-btn:active { background:var(--s3); }
+
+/* ── MODAL ── */
+.overlay {
+  position:fixed; inset:0; z-index:200;
+  background:rgba(0,0,0,.7); backdrop-filter:blur(8px);
+  display:flex; align-items:flex-end; justify-content:center;
+  opacity:0; pointer-events:none;
+  transition:opacity .3s;
+}
+.overlay.on { opacity:1; pointer-events:all; }
+.modal {
+  background:var(--s1); border-radius:24px 24px 0 0;
+  border:1px solid var(--br); border-bottom:none;
+  width:100%; max-width:520px;
+  padding:20px 20px 40px;
+  transform:translateY(100%);
+  transition:transform .35s cubic-bezier(.32,0,.18,1);
+}
+.overlay.on .modal { transform:translateY(0); }
+.mhandle { width:40px; height:4px; border-radius:4px; background:var(--s3); margin:0 auto 16px; }
+.mtitle { font-size:16px; font-weight:800; margin-bottom:16px; }
+.ilabel { font-size:11px; font-weight:700; color:var(--tx2); letter-spacing:.5px; margin-bottom:6px; display:block; }
+.ifield {
+  width:100%; padding:12px 14px; background:var(--s2);
+  border-radius:12px; border:1px solid var(--br);
+  color:var(--tx); font-size:13px; font-family:inherit;
+  outline:none; direction:ltr; margin-bottom:14px;
+  transition:border-color .2s;
+}
+.ifield:focus { border-color:var(--ac); }
+.ifield.rtl { direction:rtl; }
+.mbtn {
+  width:100%; padding:14px;
+  background:linear-gradient(135deg,var(--ac),var(--ac2));
+  border:none; border-radius:14px; color:#fff;
+  font-size:14px; font-weight:800; cursor:pointer; font-family:inherit;
+}
+.mbtn:active { opacity:.85; }
+.mbtn:disabled { opacity:.5; }
+
+/* ── TOAST ── */
+.toast {
+  position:fixed; bottom:80px; left:50%;
+  transform:translateX(-50%) translateY(16px);
+  background:var(--s2); border:1px solid var(--br);
+  border-radius:20px; padding:10px 20px;
+  font-size:12px; font-weight:600; color:var(--tx);
+  z-index:300; opacity:0; pointer-events:none;
+  transition:all .3s; white-space:nowrap;
+}
+.toast.on { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ── EMPTY ── */
+.empty { padding:48px 24px; text-align:center; color:var(--tx3); }
+.empty .ei { font-size:44px; margin-bottom:12px; opacity:.35; }
+.empty p { font-size:13px; }
+
+/* spinner */
+.spin {
+  width:28px; height:28px; border-radius:50%;
+  border:3px solid var(--s3); border-top-color:var(--ac);
+  animation:rot .7s linear infinite; margin:32px auto;
+}
+@keyframes rot { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-icon">📺</div>
+    <div class="logo-text">IPTV<b>Pro</b></div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <div class="top-btn" onclick="openSearch()">🔍</div>
+    <div class="top-btn" onclick="showModal()">＋</div>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tab on" id="tab-player" onclick="goTab('player')"><div class="ti">▶️</div>پخش</div>
+  <div class="tab" id="tab-ch"     onclick="goTab('ch')">    <div class="ti">📋</div>کانال‌ها</div>
+  <div class="tab" id="tab-fav"    onclick="goTab('fav')">   <div class="ti">⭐</div>علاقه‌مندی</div>
+  <div class="tab" id="tab-pl"     onclick="goTab('pl')">    <div class="ti">📂</div>پلی‌لیست</div>
+</div>
+
+<!-- ══ PLAYER SCREEN ══ -->
+<div class="screen on" id="s-player">
+  <div class="video-box">
+    <video id="vid" playsinline webkit-playsinline controls preload="none"></video>
+    <div class="vid-overlay" id="overlay">
+      <div class="oi">📡</div>
+      <p>یک کانال انتخاب کنید</p>
+    </div>
+    <div class="status-bar" id="sbar"></div>
+  </div>
+
+  <!-- buffer progress -->
+  <div class="buf-bar"><div class="buf-fill" id="bfill"></div></div>
+
+  <!-- now playing -->
+  <div class="now">
+    <div class="now-logo" id="nlogo">📺</div>
+    <div class="now-info">
+      <div class="now-name" id="nname">کانالی انتخاب نشده</div>
+      <div class="now-grp"  id="ngrp">—</div>
+    </div>
+    <div class="live-txt">LIVE</div>
+    <div class="live-dot"></div>
+  </div>
+
+  <!-- controls -->
+  <div class="ctrls">
+    <div class="ctrl-row">
+      <div class="cb" onclick="prevCh()">⏮</div>
+      <div class="cb" onclick="doPip()">⧉</div>
+      <div class="cb big" id="playbtn" onclick="togglePlay()">▶</div>
+      <div class="cb" id="favbtn" onclick="favCurrent()">☆</div>
+      <div class="cb" onclick="nextCh()">⏭</div>
+    </div>
+    <!-- buffer delay control -->
+    <div class="buf-row">
+      <label>⏱ تاخیر بافر:</label>
+      <input type="range" id="buf-slider" min="0" max="15" step="1" value="5" oninput="setBuf(this.value)">
+      <div class="buf-val" id="buf-val">5s</div>
+    </div>
+  </div>
+
+  <!-- channel list inside player -->
+  <div class="p-list" id="plist"></div>
+</div>
+
+<!-- ══ CHANNELS SCREEN ══ -->
+<div class="screen" id="s-ch">
+  <div class="search-wrap" id="search-wrap" style="display:none">
+    <div class="search-inner">
+      <span>🔍</span>
+      <input type="text" id="search-in" placeholder="جستجوی کانال..." oninput="doSearch(this.value)">
+      <span onclick="clearSearch()" style="cursor:pointer;color:var(--tx3)">✕</span>
+    </div>
+  </div>
+  <div class="cats" id="cats"></div>
+  <div id="chlist"></div>
+</div>
+
+<!-- ══ FAVORITES SCREEN ══ -->
+<div class="screen" id="s-fav">
+  <div class="sh">علاقه‌مندی‌های من</div>
+  <div id="favlist"></div>
+</div>
+
+<!-- ══ PLAYLIST SCREEN ══ -->
+<div class="screen" id="s-pl">
+  <div class="sh">پلی‌لیست‌ها</div>
+  <div id="plcon"></div>
+  <button class="add-btn" onclick="showModal()">➕ افزودن پلی‌لیست جدید</button>
+</div>
+
+<!-- ══ MODAL ══ -->
+<div class="overlay" id="modal" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <div class="mhandle"></div>
+    <div class="mtitle">افزودن پلی‌لیست</div>
+    <label class="ilabel">نام پلی‌لیست</label>
+    <input class="ifield rtl" type="text" id="m-name" placeholder="مثلاً: کانال‌های فارسی">
+    <label class="ilabel">لینک M3U / M3U8</label>
+    <input class="ifield" type="url" id="m-url" placeholder="http://server.com/playlist.m3u">
+    <button class="mbtn" id="mbtn" onclick="addPL()">بارگذاری پلی‌لیست</button>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════
+// STATE
+// ══════════════════════════════
+var S = {
+  playlists: [],
+  channels: [],
+  favorites: [],
+  current: null,
+  curIdx: -1,
+  cat: 'all',
+  q: '',
+  bufDelay: 5,   // seconds
+};
+
+var hls = null;
+var curTab = 'player';
+
+// ══════════════════════════════
+// INIT
+// ══════════════════════════════
+(function init() {
+  var saved = localStorage.getItem('iptv2');
+  if (saved) {
+    try {
+      var d = JSON.parse(saved);
+      S.playlists = d.playlists || [];
+      S.favorites = d.favorites || [];
+      S.current   = d.current   || null;
+      S.bufDelay  = d.bufDelay  != null ? d.bufDelay : 5;
+      S.channels  = [];
+      S.playlists.forEach(function(p){ if(p.channels) S.channels = S.channels.concat(p.channels); });
+    } catch(e){}
+  }
+  document.getElementById('buf-slider').value = S.bufDelay;
+  document.getElementById('buf-val').textContent = S.bufDelay + 's';
+  renderAll();
+  goTab('player');
+})();
+
+function save() {
+  localStorage.setItem('iptv2', JSON.stringify({
+    playlists: S.playlists,
+    favorites: S.favorites,
+    current:   S.current,
+    bufDelay:  S.bufDelay,
+  }));
+}
+
+// ══════════════════════════════
+// TABS
+// ══════════════════════════════
+function goTab(t) {
+  curTab = t;
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('on'); });
+  document.querySelectorAll('.tab').forEach(function(tb){ tb.classList.remove('on'); });
+  document.getElementById('s-' + t).classList.add('on');
+  document.getElementById('tab-' + t).classList.add('on');
+  if (t === 'ch')  { renderCats(); renderChs(); }
+  if (t === 'fav') renderFavs();
+  if (t === 'pl')  renderPLs();
+  if (t === 'player') renderPList();
+}
+
+// ══════════════════════════════
+// PLAYLIST LOAD
+// ══════════════════════════════
+function showModal() {
+  document.getElementById('modal').classList.add('on');
+}
+function closeModal() {
+  document.getElementById('modal').classList.remove('on');
+}
+function closeModalOutside(e) {
+  if (e.target === document.getElementById('modal')) closeModal();
+}
+
+async function addPL() {
+  var name = document.getElementById('m-name').value.trim();
+  var url  = document.getElementById('m-url').value.trim();
+  if (!url) { toast('لطفاً لینک وارد کنید'); return; }
+
+  var btn = document.getElementById('mbtn');
+  btn.textContent = '⏳ در حال دریافت...';
+  btn.disabled = true;
+  toast('🔄 در حال دریافت پلی‌لیست...');
+
+  try {
+    var text = await fetchM3U(url);
+    var chs  = parseM3U(text, Date.now());
+    if (!chs.length) throw new Error('empty');
+
+    var pl = {
+      id: Date.now(),
+      name: name || 'پلی‌لیست ' + (S.playlists.length + 1),
+      url: url,
+      channels: chs,
+      count: chs.length,
+      date: new Date().toLocaleDateString('fa-IR'),
+    };
+    S.playlists.push(pl);
+    S.channels = S.channels.concat(chs);
+    save();
+    closeModal();
+    document.getElementById('m-name').value = '';
+    document.getElementById('m-url').value  = '';
+    toast('✅ ' + chs.length + ' کانال بارگذاری شد');
+    goTab('ch');
+  } catch(e) {
+    var msg = '❌ خطا در دریافت پلی‌لیست';
+    if (e.message === 'empty') msg = '❌ پلی‌لیست خالی است';
+    toast(msg);
+    console.error(e);
+  }
+
+  btn.textContent = 'بارگذاری پلی‌لیست';
+  btn.disabled = false;
+}
+
+// Fetch with multiple CORS proxies in parallel
+async function fetchM3U(url) {
+  var proxies = [
+    url,
+    'https://corsproxy.io/?' + encodeURIComponent(url),
+    'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+    'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+    'https://thingproxy.freeboard.io/fetch/' + url,
+  ];
+
+  // Try all in parallel, return first valid M3U
+  var results = await Promise.allSettled(
+    proxies.map(function(u) {
+      return fetch(u, { signal: AbortSignal.timeout ? AbortSignal.timeout(12000) : undefined })
+        .then(function(r) { return r.ok ? r.text() : Promise.reject(r.status); });
+    })
+  );
+
+  for (var i = 0; i < results.length; i++) {
+    var r = results[i];
+    if (r.status === 'fulfilled' && r.value && r.value.indexOf('#EXTM3U') !== -1) {
+      return r.value;
+    }
+  }
+  throw new Error('fetch_failed');
+}
+
+function parseM3U(text, seed) {
+  var lines = text.split('\n');
+  var chs = [], cur = null;
+  for (var i = 0; i < lines.length; i++) {
+    var ln = lines[i].trim();
+    if (ln.indexOf('#EXTINF:') === 0) {
+      cur = { id: 'c' + seed + '_' + i, name:'', group:'General', logo:'', url:'' };
+      var nm = ln.match(/,(.+)$/);
+      if (nm) cur.name = nm[1].trim();
+      var gr = ln.match(/group-title="([^"]+)"/);
+      if (gr) cur.group = gr[1];
+      var lg = ln.match(/tvg-logo="([^"]+)"/);
+      if (lg) cur.logo = lg[1];
+    } else if (cur && ln && ln[0] !== '#') {
+      cur.url = ln;
+      chs.push(cur);
+      cur = null;
+    }
+  }
+  return chs;
+}
+
+async function refreshPL(id) {
+  var pl = S.playlists.find(function(p){ return p.id === id; });
+  if (!pl) return;
+  toast('🔄 در حال بروزرسانی...');
+  try {
+    var text = await fetchM3U(pl.url);
+    var chs  = parseM3U(text, Date.now());
+    S.channels = S.channels.filter(function(c){ return !pl.channels.find(function(x){ return x.id===c.id; }); });
+    pl.channels = chs;
+    pl.count = chs.length;
+    S.channels = S.channels.concat(chs);
+    save(); renderPLs();
+    toast('✅ ' + chs.length + ' کانال بروزرسانی شد');
+  } catch(e) { toast('❌ خطا در بروزرسانی'); }
+}
+
+function deletePL(id) {
+  var pl = S.playlists.find(function(p){ return p.id===id; });
+  if (!pl) return;
+  S.channels = S.channels.filter(function(c){ return !pl.channels.find(function(x){ return x.id===c.id; }); });
+  S.playlists = S.playlists.filter(function(p){ return p.id!==id; });
+  save(); renderPLs();
+  toast('🗑️ پلی‌لیست حذف شد');
+}
+
+// ══════════════════════════════
+// RENDER PLAYLISTS
+// ══════════════════════════════
+function renderPLs() {
+  var c = document.getElementById('plcon');
+  if (!S.playlists.length) {
+    c.innerHTML = '<div class="empty"><div class="ei">📂</div><p>هنوز پلی‌لیستی اضافه نکردید</p></div>';
+    return;
+  }
+  c.innerHTML = S.playlists.map(function(pl) {
+    return '<div class="pl-card">' +
+      '<div class="pl-head">' +
+        '<div class="pl-icon">📋</div>' +
+        '<div class="pl-info">' +
+          '<div class="pl-name">' + pl.name + '</div>' +
+          '<div class="pl-meta">' + pl.count + ' کانال · ' + pl.date + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="pl-btns">' +
+        '<button class="pb ref" onclick="refreshPL(' + pl.id + ')">🔄 بروزرسانی</button>' +
+        '<button class="pb del" onclick="deletePL(' + pl.id + ')">🗑️ حذف</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// ══════════════════════════════
+// RENDER CHANNELS
+// ══════════════════════════════
+function getFiltered() {
+  var chs = S.channels;
+  if (S.cat !== 'all') chs = chs.filter(function(c){ return c.group === S.cat; });
+  if (S.q) {
+    var q = S.q.toLowerCase();
+    chs = chs.filter(function(c){ return c.name.toLowerCase().indexOf(q) !== -1 || (c.group||'').toLowerCase().indexOf(q) !== -1; });
+  }
+  return chs;
+}
+
+function renderCats() {
+  var cats = ['all'].concat(Array.from(new Set(S.channels.map(function(c){ return c.group; }).filter(Boolean))));
+  document.getElementById('cats').innerHTML = cats.map(function(cat) {
+    return '<div class="chip ' + (S.cat===cat?'on':'') + '" onclick="pickCat(\'' + cat.replace(/'/g,"\\'") + '\')">' +
+      (cat==='all' ? '📺 همه' : cat) + '</div>';
+  }).join('');
+}
+
+function pickCat(cat) { S.cat = cat; renderCats(); renderChs(); }
+
+function renderChs() {
+  var chs = getFiltered();
+  var el = document.getElementById('chlist');
+  if (!chs.length) { el.innerHTML = '<div class="empty"><div class="ei">📡</div><p>کانالی یافت نشد</p></div>'; return; }
+  el.innerHTML = chs.map(function(ch, i){ return chHTML(ch, i+1); }).join('');
+}
+
+function renderPList() {
+  var el = document.getElementById('plist');
+  var chs = S.channels.slice(0, 80);
+  if (!chs.length) { el.innerHTML = '<div class="empty"><div class="ei">📡</div><p>ابتدا یک پلی‌لیست اضافه کنید</p></div>'; return; }
+  el.innerHTML = '<div class="sh">کانال‌ها</div>' + chs.map(function(ch, i){ return chHTML(ch, i+1); }).join('');
+}
+
+function renderFavs() {
+  var chs = S.channels.filter(function(c){ return S.favorites.indexOf(c.id) !== -1; });
+  var el = document.getElementById('favlist');
+  if (!chs.length) { el.innerHTML = '<div class="empty"><div class="ei">⭐</div><p>هنوز کانالی اضافه نکردید</p></div>'; return; }
+  el.innerHTML = chs.map(function(ch, i){ return chHTML(ch, i+1); }).join('');
+}
+
+function chHTML(ch, num) {
+  var isFav = S.favorites.indexOf(ch.id) !== -1;
+  var isPlay = S.current && S.current.id === ch.id;
+  var logo = ch.logo
+    ? '<img src="' + ch.logo + '" onerror="this.parentElement.textContent=\'📺\'" loading="lazy">'
+    : '📺';
+  return '<div class="ch' + (isPlay?' playing':'') + '" onclick="playCh(\'' + ch.id + '\')">' +
+    '<div class="ch-num">' + num + '</div>' +
+    '<div class="ch-logo">' + logo + '</div>' +
+    '<div class="ch-info">' +
+      '<div class="ch-name">' + ch.name + '</div>' +
+      '<div class="ch-grp">' + (ch.group||'General') + '</div>' +
+    '</div>' +
+    '<div class="ch-fav ' + (isFav?'on':'') + '" onclick="toggleFav(event,\'' + ch.id + '\')">' + (isFav?'⭐':'☆') + '</div>' +
+  '</div>';
+}
+
+function renderAll() {
+  renderPLs(); renderChs(); renderFavs(); renderPList();
+}
+
+// ══════════════════════════════
+// PLAY — with buffer delay
+// ══════════════════════════════
+function playCh(id) {
+  var ch = S.channels.find(function(c){ return c.id===id; });
+  if (!ch) return;
+  S.current = ch;
+  S.curIdx  = S.channels.indexOf(ch);
+  save();
+
+  document.getElementById('nname').textContent = ch.name;
+  document.getElementById('ngrp').textContent  = ch.group || 'General';
+  document.getElementById('nlogo').textContent = '📺';
+  if (ch.logo) {
+    var img = new Image();
+    img.onload = function(){ document.getElementById('nlogo').innerHTML = '<img src="' + ch.logo + '" style="width:100%;height:100%;object-fit:contain;">'; };
+    img.src = ch.logo;
+  }
+  updateFavBtn();
+  loadStream(ch.url);
+  goTab('player');
+}
+
+function loadStream(url) {
+  var v = document.getElementById('vid');
+  var overlay = document.getElementById('overlay');
+  var sbar = document.getElementById('sbar');
+
+  // destroy old hls
+  if (hls) { hls.destroy(); hls = null; }
+
+  overlay.classList.add('hidden');
+  v.style.display = 'block';
+  sbar.style.display = 'block';
+  sbar.textContent = '⏳ در حال اتصال...';
+  document.getElementById('bfill').style.width = '0%';
+
+  if (!url) { sbar.textContent = '❌ لینک موجود نیست'; return; }
+
+  var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+  if (isIOS) {
+    // iOS Safari — native HLS. Apply buffer via currentTime trick after enough data
+    v.src = url;
+    v.load();
+
+    v.oncanplay = function() {
+      sbar.textContent = '⏳ بافر ' + S.bufDelay + ' ثانیه...';
+      // seek forward to create buffer
+      if (S.bufDelay > 0 && v.seekable && v.seekable.length > 0) {
+        var end = v.seekable.end(0);
+        if (end > S.bufDelay) {
+          v.currentTime = end - S.bufDelay;
+        }
+      }
+      v.play().then(function(){
+        sbar.style.display = 'none';
+        document.getElementById('playbtn').textContent = '⏸';
+        animBuf();
+      }).catch(function(){
+        sbar.textContent = '▶ برای پخش لمس کنید';
+      });
+    };
+
+    v.onerror = function() {
+      sbar.textContent = '❌ استریم در دسترس نیست';
+    };
+
+  } else if (Hls && Hls.isSupported()) {
+    hls = new Hls({
+      maxBufferLength: S.bufDelay + 10,
+      maxMaxBufferLength: S.bufDelay + 20,
+      liveSyncDurationCount: Math.max(3, S.bufDelay),
+      liveMaxLatencyDurationCount: S.bufDelay + 5,
+      lowLatencyMode: false,
+      enableWorker: true,
+    });
+
+    hls.loadSource(url);
+    hls.attachMedia(v);
+
+    hls.on(Hls.Events.MANIFEST_PARSED, function() {
+      sbar.textContent = '⏳ بافر در حال پر شدن...';
+      v.play().then(function(){
+        sbar.style.display = 'none';
+        document.getElementById('playbtn').textContent = '⏸';
+        animBuf();
+      }).catch(function(){
+        sbar.textContent = '▶ برای پخش لمس کنید';
+      });
+    });
+
+    hls.on(Hls.Events.BUFFER_APPENDED, function() {
+      var buf = v.buffered;
+      if (buf.length) {
+        var buffered = buf.end(buf.length-1) - v.currentTime;
+        var pct = Math.min((buffered / (S.bufDelay + 5)) * 100, 100);
+        document.getElementById('bfill').style.width = pct + '%';
+      }
+    });
+
+    hls.on(Hls.Events.ERROR, function(e, data) {
+      if (data.fatal) {
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+          sbar.style.display = 'block';
+          sbar.textContent = '❌ خطای شبکه';
+          hls.stopLoad();
+        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          hls.recoverMediaError();
+        }
+      }
+    });
+
+  } else {
+    v.src = url;
+    v.play().catch(function(){});
+  }
+}
+
+// animate buffer bar
+function animBuf() {
+  var v = document.getElementById('vid');
+  var fill = document.getElementById('bfill');
+  setInterval(function(){
+    if (v.buffered && v.buffered.length) {
+      var b = v.buffered.end(v.buffered.length-1) - v.currentTime;
+      fill.style.width = Math.min((b / (S.bufDelay+5))*100, 100) + '%';
+    }
+  }, 500);
+}
+
+function togglePlay() {
+  var v = document.getElementById('vid');
+  if (v.paused) { v.play(); document.getElementById('playbtn').textContent = '⏸'; }
+  else          { v.pause(); document.getElementById('playbtn').textContent = '▶'; }
+}
+
+function prevCh() {
+  if (!S.channels.length) return;
+  var idx = S.curIdx > 0 ? S.curIdx-1 : S.channels.length-1;
+  playCh(S.channels[idx].id);
+}
+function nextCh() {
+  if (!S.channels.length) return;
+  var idx = S.curIdx < S.channels.length-1 ? S.curIdx+1 : 0;
+  playCh(S.channels[idx].id);
+}
+
+async function doPip() {
+  var v = document.getElementById('vid');
+  try {
+    if (document.pictureInPictureElement) await document.exitPictureInPicture();
+    else await v.requestPictureInPicture();
+  } catch(e) { toast('PiP پشتیبانی نمی‌شود'); }
+}
+
+// ══════════════════════════════
+// BUFFER DELAY CONTROL
+// ══════════════════════════════
+function setBuf(val) {
+  S.bufDelay = parseInt(val);
+  document.getElementById('buf-val').textContent = val + 's';
+  save();
+  // re-apply if playing
+  if (S.current && document.getElementById('vid').src) {
+    loadStream(S.current.url);
+  }
+}
+
+// ══════════════════════════════
+// FAVORITES
+// ══════════════════════════════
+function toggleFav(e, id) {
+  e.stopPropagation();
+  var idx = S.favorites.indexOf(id);
+  if (idx !== -1) { S.favorites.splice(idx,1); toast('حذف از علاقه‌مندی‌ها'); }
+  else            { S.favorites.push(id);      toast('⭐ اضافه شد'); }
+  save();
+  if (curTab==='ch')  renderChs();
+  if (curTab==='fav') renderFavs();
+  updateFavBtn();
+}
+function favCurrent() {
+  if (S.current) toggleFav({stopPropagation:function(){}}, S.current.id);
+}
+function updateFavBtn() {
+  if (!S.current) return;
+  var on = S.favorites.indexOf(S.current.id) !== -1;
+  var btn = document.getElementById('favbtn');
+  btn.textContent = on ? '⭐' : '☆';
+  if (on) btn.classList.add('act'); else btn.classList.remove('act');
+}
+
+// ══════════════════════════════
+// SEARCH
+// ══════════════════════════════
+function openSearch() {
+  var w = document.getElementById('search-wrap');
+  w.style.display = w.style.display === 'none' ? 'block' : 'none';
+  if (w.style.display !== 'none') document.getElementById('search-in').focus();
+  goTab('ch');
+}
+function doSearch(q) { S.q = q; renderChs(); }
+function clearSearch() { S.q=''; document.getElementById('search-in').value=''; renderChs(); }
+
+// ══════════════════════════════
+// VIDEO EVENTS
+// ══════════════════════════════
+var vid = document.getElementById('vid');
+vid.addEventListener('play',  function(){ document.getElementById('playbtn').textContent='⏸'; });
+vid.addEventListener('pause', function(){ document.getElementById('playbtn').textContent='▶'; });
+vid.addEventListener('ended', function(){ nextCh(); });
+vid.style.display = 'none';
+
+// ══════════════════════════════
+// TOAST
+// ══════════════════════════════
+var _tt;
+function toast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('on');
+  clearTimeout(_tt);
+  _tt = setTimeout(function(){ el.classList.remove('on'); }, 2600);
+}
+</script>
+</body>
+</html>
